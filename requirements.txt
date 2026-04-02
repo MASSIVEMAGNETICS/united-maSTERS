@@ -1,0 +1,9 @@
+click>=8.0
+flask>=2.0
+mutagen>=1.45
+pillow>=9.0
+numpy>=1.21
+scipy>=1.7
+pydub>=0.25
+# librosa is optional (heavy dependency) — scipy is used for basic audio analysis
+# librosa>=0.9

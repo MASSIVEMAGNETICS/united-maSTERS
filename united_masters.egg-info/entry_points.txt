@@ -1,0 +1,2 @@
+[console_scripts]
+united-masters = united_masters.cli:cli

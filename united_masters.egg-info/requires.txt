@@ -1,0 +1,7 @@
+click>=8.0
+flask>=2.0
+mutagen>=1.45
+numpy>=1.21
+pillow>=9.0
+pydub>=0.25
+scipy>=1.7
