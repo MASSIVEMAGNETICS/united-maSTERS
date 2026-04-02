@@ -140,9 +140,10 @@ def _compute_analysis(data, sample_rate: int) -> AudioAnalysis:  # type: ignore[
     rms_db = _to_db(rms) if rms > 0 else -99.0
     analysis.crest_factor_db = round(analysis.true_peak_dbfs - rms_db, 2)
 
-    # Simplified LUFS approximation (no full K-weighting filter chain)
-    # Uses mean square with a constant offset that approximates the K-weighting
-    # offset for typical music programme material.
+    # Simplified LUFS approximation (not ITU-R BS.1770 compliant — no K-weighting
+    # filter chain). The constant -0.691 is the approximate K-weighting gain offset
+    # for typical music programme material (midpoint of the -0.5 to -0.9 dB range).
+    # For compliant metering, use pyloudnorm or a proper BS.1770 implementation.
     mean_sq = float(np.mean(mono ** 2)) if total_samples > 0 else 0.0
     if mean_sq > 0:
         analysis.integrated_lufs = round(-0.691 + 10 * math.log10(mean_sq), 2)

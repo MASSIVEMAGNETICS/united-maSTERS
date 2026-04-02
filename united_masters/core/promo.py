@@ -96,7 +96,7 @@ def generate_release_caption(
     if year:
         parts.append(year)
     if analysis and analysis.estimated_bpm:
-        parts.append(f"{analysis.estimated_bpm:.0f} BPM")
+        parts.append(f"{int(analysis.estimated_bpm)} BPM")
 
     parts.append("#NewMusic #Release")
 

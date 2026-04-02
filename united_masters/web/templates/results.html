@@ -5,11 +5,23 @@
 {% if status == "running" %}
 <div class="card" style="margin-top:32px; text-align:center;">
   <div class="card-title">⚙  Processing your release…</div>
-  <p class="muted" style="margin-bottom:20px;">This page will refresh automatically every 3 seconds.</p>
+  <p class="muted" style="margin-bottom:20px;">Checking status every 3 seconds…</p>
   <div style="color:var(--purple); font-size:2rem;">◌</div>
 </div>
 <script>
-  setTimeout(function(){ location.reload(); }, 3000);
+  (function poll() {
+    var jobId = {{ job_id | tojson }};
+    fetch('/api/status/' + jobId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.status !== 'running') {
+          window.location.reload();
+        } else {
+          setTimeout(poll, 3000);
+        }
+      })
+      .catch(function() { setTimeout(poll, 3000); });
+  })();
 </script>
 
 {% elif status == "error" %}

@@ -4,6 +4,8 @@ app.py — Flask web application for the UnitedMasters Release Workbench.
 
 from __future__ import annotations
 
+import logging
+import os
 import threading
 import traceback
 import uuid
@@ -15,7 +17,56 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 from united_masters import __version__
 
 app = Flask(__name__)
-app.secret_key = "um-workbench-dev-key"
+
+_secret = os.environ.get("UM_SECRET_KEY")
+if not _secret:
+    logging.warning(
+        "UM_SECRET_KEY environment variable not set — using insecure default. "
+        "Set UM_SECRET_KEY before deploying."
+    )
+    _secret = "um-workbench-dev-key"
+app.secret_key = _secret
+
+# Sensitive system path prefixes that are never valid release-folder targets.
+_BLOCKED_PATH_PREFIXES = (
+    "/etc",
+    "/bin",
+    "/sbin",
+    "/usr/bin",
+    "/usr/sbin",
+    "/boot",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/run",
+    "/var/run",
+    "/root",
+    "/tmp",
+)
+
+# Allowed preset keys — validated server-side before passing to the pipeline.
+_ALLOWED_PRESETS = {
+    "streaming_safe",
+    "loud_modern_rap",
+    "warm_hip_hop",
+    "vocal_forward",
+    "trap_808_heavy",
+    "clean_dynamic",
+}
+
+# Allowed export format keys — validated server-side.
+_ALLOWED_FORMATS = {
+    "wav_16_44",
+    "wav_24_44",
+    "wav_24_48",
+    "wav_24_96",
+    "mp3_128",
+    "mp3_192",
+    "mp3_256",
+    "mp3_320",
+    "mp3_vbr",
+    "flac",
+}
 
 # In-memory job store: {job_id: {"status": ..., "result": ...}}
 _jobs: Dict[str, Dict[str, Any]] = {}
@@ -34,9 +85,16 @@ def index():
 @app.route("/process", methods=["POST"])
 def process():
     input_dir = request.form.get("input_dir", "").strip()
-    preset = request.form.get("preset", "streaming_safe")
+    raw_preset = request.form.get("preset", "streaming_safe")
     raw_formats = request.form.getlist("formats")
-    formats = raw_formats if raw_formats else ["wav_16_44", "mp3_320", "flac"]
+
+    # Validate preset against the allow-list.
+    preset = raw_preset if raw_preset in _ALLOWED_PRESETS else "streaming_safe"
+
+    # Validate each format key against the allow-list; silently drop unknowns.
+    formats = [f for f in raw_formats if f in _ALLOWED_FORMATS]
+    if not formats:
+        formats = ["wav_16_44", "mp3_320", "flac"]
 
     if not input_dir:
         return render_template(
@@ -45,8 +103,8 @@ def process():
             error="Please provide an input directory path.",
         )
 
-    # Resolve to an absolute path and confirm it is a real directory.
-    # This prevents relative-path traversal and symlink tricks.
+    # Resolve to an absolute, canonical path so symlinks and relative segments
+    # (e.g. "../../../etc") are fully expanded before any further checks.
     try:
         resolved = Path(input_dir).resolve()
     except Exception:
@@ -56,6 +114,16 @@ def process():
             error="Invalid directory path.",
         )
 
+    # Block well-known sensitive system directories.
+    resolved_str = str(resolved)
+    for blocked in _BLOCKED_PATH_PREFIXES:
+        if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
+            return render_template(
+                "index.html",
+                version=__version__,
+                error="Access to system directories is not permitted.",
+            )
+
     if not resolved.is_dir():
         return render_template(
             "index.html",
@@ -63,7 +131,7 @@ def process():
             error=f"Directory not found: {input_dir}",
         )
 
-    input_dir = str(resolved)
+    input_dir = resolved_str
 
     job_id = str(uuid.uuid4())
     output_dir = str(Path(input_dir) / "_output")
