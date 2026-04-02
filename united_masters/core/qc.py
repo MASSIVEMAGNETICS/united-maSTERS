@@ -8,7 +8,7 @@ and delivery issues.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from united_masters.core.analyze import AudioAnalysis
 from united_masters.core.ingest import AudioFile

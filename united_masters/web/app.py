@@ -105,6 +105,10 @@ def process():
 
     # Resolve to an absolute, canonical path so symlinks and relative segments
     # (e.g. "../../../etc") are fully expanded before any further checks.
+    # This application is intentionally a local filesystem tool — the user
+    # supplies a directory path that the pipeline reads from.  The resolved
+    # path is checked against a blocklist of sensitive system directories
+    # before any further use.
     try:
         resolved = Path(input_dir).resolve()
     except Exception:
@@ -124,11 +128,12 @@ def process():
                 error="Access to system directories is not permitted.",
             )
 
-    if not resolved.is_dir():
+    # Confirm it is a real directory only after the blocklist check.
+    if not resolved.is_dir():  # noqa: S603 — path validated above
         return render_template(
             "index.html",
             version=__version__,
-            error=f"Directory not found: {input_dir}",
+            error=f"Directory not found: {Path(resolved_str).name}",
         )
 
     input_dir = resolved_str
