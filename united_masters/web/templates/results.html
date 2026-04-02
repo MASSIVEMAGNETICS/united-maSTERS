@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Results — UnitedMasters{% endblock %}
+{% block content %}
+
+{% if status == "running" %}
+<div class="card" style="margin-top:32px; text-align:center;">
+  <div class="card-title">⚙  Processing your release…</div>
+  <p class="muted" style="margin-bottom:20px;">Checking status every 3 seconds…</p>
+  <div style="color:var(--purple); font-size:2rem;">◌</div>
+</div>
+<script>
+  (function poll() {
+    var jobId = {{ job_id | tojson }};
+    fetch('/api/status/' + jobId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.status !== 'running') {
+          window.location.reload();
+        } else {
+          setTimeout(poll, 3000);
+        }
+      })
+      .catch(function() { setTimeout(poll, 3000); });
+  })();
+</script>
+
+{% elif status == "error" %}
+<div class="alert alert-err" style="margin-top:24px;">
+  <strong>Pipeline error:</strong><br/>
+  <pre style="margin-top:8px; white-space:pre-wrap; font-size:0.8rem;">{{ error }}</pre>
+</div>
+<p style="margin-top:16px;"><a href="/">← Back</a></p>
+
+{% elif status == "done" and result %}
+
+{# ── Risk score ──────────────────────────────────────────────────────── #}
+{% set risk = result.risk_score | int %}
+{% if risk <= 20 %}{% set risk_cls = "badge-green" %}{% set risk_label = "LOW" %}
+{% elif risk <= 50 %}{% set risk_cls = "badge-yellow" %}{% set risk_label = "MEDIUM" %}
+{% else %}{% set risk_cls = "badge-red" %}{% set risk_label = "HIGH" %}{% endif %}
+
+<div class="card" style="margin-top:32px; display:flex; justify-content:space-between; align-items:center;">
+  <div>
+    <div class="card-title" style="margin-bottom:4px; border:none; padding:0;">Release Risk Score</div>
+    <p class="muted" style="font-size:0.85rem;">Lower is better. Fix errors before submitting to distributors.</p>
+  </div>
+  <div style="text-align:right;">
+    <span class="badge {{ risk_cls }}" style="font-size:1.5rem; padding:6px 18px;">{{ risk }}/100</span>
+    <div class="badge {{ risk_cls }}" style="margin-top:6px;">{{ risk_label }} RISK</div>
+  </div>
+</div>
+
+{# ── Source quality warnings ─────────────────────────────────────────── #}
+{% if result.source_quality_warnings %}
+<div class="card">
+  <div class="card-title">⚠  Source Quality Warnings</div>
+  {% for w in result.source_quality_warnings %}
+  <div class="alert alert-warn" style="margin-top:8px;">{{ w }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Files & analysis ────────────────────────────────────────────────── #}
+<div class="card section-gap">
+  <div class="card-title">🎵  Tracks ({{ result.files | length }})</div>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th><th>Duration</th><th>LUFS</th><th>True Peak</th>
+        <th>Sample Rate</th><th>Clipped</th><th>BPM</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for f in result.files %}
+    {% set an = result.analyses.get(f.filename, {}) %}
+    <tr>
+      <td class="mono">{{ f.filename }}</td>
+      <td>{{ "%.1f"|format(an.get("duration_seconds", 0)) }}s</td>
+      <td>{{ "%.1f"|format(an.get("integrated_lufs", -99)) }}</td>
+      <td>{{ "%.1f"|format(an.get("true_peak_dbfs", -99)) }}</td>
+      <td>{{ an.get("sample_rate", "?") }}</td>
+      <td>{% if an.get("is_clipped") %}<span class="badge badge-red">YES</span>{% else %}<span class="badge badge-green">No</span>{% endif %}</td>
+      <td>{{ an.get("estimated_bpm", "N/A") or "N/A" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Preset recommendations ──────────────────────────────────────────── #}
+{% if result.preset_recommendations %}
+<div class="card section-gap">
+  <div class="card-title">🎚  Mastering Preset Recommendations</div>
+  {% for filename, rec in result.preset_recommendations.items() %}
+  <div style="margin-top:16px; padding:16px; background:var(--surface); border-radius:8px; border:1px solid var(--border);">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong class="mono">{{ filename }}</strong>
+      <span class="badge badge-cyan">{{ rec.display_name }}</span>
+    </div>
+    <p style="color:var(--muted); font-size:0.85rem; margin-top:8px;">{{ rec.why }}</p>
+    <p style="font-size:0.85rem; margin-top:6px;">Target: <strong>{{ rec.target_lufs }}</strong> &nbsp;|&nbsp; True peak ceiling: <strong>{{ rec.true_peak_ceiling }}</strong></p>
+    {% if rec.chain_explanation %}
+    <details style="margin-top:10px;">
+      <summary style="cursor:pointer; color:var(--purple); font-size:0.85rem;">Signal chain ({{ rec.chain_explanation | length }} stages)</summary>
+      <ul style="margin-top:8px; padding-left:18px; font-size:0.83rem; color:var(--muted); line-height:1.9;">
+        {% for stage in rec.chain_explanation %}
+        <li>{{ stage }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── QC report ───────────────────────────────────────────────────────── #}
+{% if result.qc_reports %}
+<div class="card section-gap">
+  <div class="card-title">🔬  QC Report</div>
+
+  {% if result.album_qc %}
+  <div style="margin-bottom:16px;">
+    <strong style="font-size:0.85rem; color:var(--muted);">Album-level</strong>
+    {% for issue in result.album_qc %}
+    {% if issue.severity == "error" %}{% set cls = "badge-red" %}
+    {% elif issue.severity == "warning" %}{% set cls = "badge-yellow" %}
+    {% else %}{% set cls = "badge-cyan" %}{% endif %}
+    <div style="margin-top:8px; padding:10px 14px; background:var(--surface); border-radius:6px; font-size:0.85rem;">
+      <span class="badge {{ cls }}">{{ issue.severity }}</span>
+      <span style="margin-left:8px; color:var(--muted);">[{{ issue.code }}]</span>
+      {{ issue.message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr><th>Track</th><th>Status</th><th>Errors</th><th>Warnings</th><th>Issues</th></tr>
+    </thead>
+    <tbody>
+    {% for r in result.qc_reports %}
+    <tr>
+      <td class="mono">{{ r.filename }}</td>
+      <td>
+        {% if r.passed %}<span class="badge badge-green">PASS</span>
+        {% else %}<span class="badge badge-red">FAIL</span>{% endif %}
+      </td>
+      <td>{{ r.error_count }}</td>
+      <td>{{ r.warning_count }}</td>
+      <td style="font-size:0.8rem; color:var(--muted);">
+        {% for issue in r.issues %}
+        <div>
+          {% if issue.severity == "error" %}⛔{% elif issue.severity == "warning" %}⚠{% else %}ℹ{% endif %}
+          [{{ issue.code }}] {{ issue.message }}
+        </div>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Album consistency ───────────────────────────────────────────────── #}
+{% if result.consistency %}
+{% set c = result.consistency %}
+<div class="card section-gap">
+  <div class="card-title">📊  Album Consistency</div>
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; text-align:center; margin-bottom:16px;">
+    <div style="background:var(--surface); padding:14px; border-radius:8px;">
+      <div style="font-size:1.4rem; font-weight:700; color:var(--purple);">{{ "%.1f"|format(c.mean_lufs) }}</div>
+      <div class="muted" style="font-size:0.8rem;">Mean LUFS</div>
+    </div>
+    <div style="background:var(--surface); padding:14px; border-radius:8px;">
+      <div style="font-size:1.4rem; font-weight:700; color:{% if c.lufs_variance > 6 %}var(--red){% elif c.lufs_variance > 3 %}var(--yellow){% else %}var(--green){% endif %};">{{ "%.1f"|format(c.lufs_variance) }} dB</div>
+      <div class="muted" style="font-size:0.8rem;">LUFS Variance</div>
+    </div>
+    <div style="background:var(--surface); padding:14px; border-radius:8px;">
+      <div style="font-size:1.4rem; font-weight:700; color:var(--cyan);">{{ "%.1f"|format(c.recommended_target_lufs) }}</div>
+      <div class="muted" style="font-size:0.8rem;">Recommended Target</div>
+    </div>
+  </div>
+  {% if c.outlier_tracks %}
+  <div class="alert alert-warn">
+    <strong>Loudness outliers:</strong>
+    {% for ot in c.outlier_tracks %}
+    <div style="margin-top:4px;">{{ ot.filename }} — {{ "%.1f"|format(ot.lufs) }} LUFS ({{ "%+.1f"|format(ot.delta_from_mean) }} dB from mean)</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if c.sequence_suggestion %}
+  <p style="font-size:0.85rem; margin-top:12px; color:var(--muted);">
+    <strong>Suggested track order:</strong>
+    {{ c.sequence_suggestion | join(" → ") }}
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Manifest / tracklist ────────────────────────────────────────────── #}
+{% if result.manifest %}
+{% set m = result.manifest %}
+<div class="card section-gap">
+  <div class="card-title">📋  Release Manifest</div>
+  <p><strong>{{ m.release_title }}</strong> by {{ m.artist }} &nbsp;·&nbsp; {{ m.release_date }}</p>
+  <p class="muted" style="font-size:0.85rem; margin-top:4px;">{{ m.tracks | length }} tracks &nbsp;·&nbsp; {{ "%.0f"|format(m.total_duration_seconds // 60) }}:{{ "%02d"|format(m.total_duration_seconds % 60 | int) }} total</p>
+  <table style="margin-top:16px;">
+    <thead>
+      <tr><th>#</th><th>Title</th><th>Artist</th><th>Duration</th><th>LUFS</th><th>ISRC</th><th>Explicit</th></tr>
+    </thead>
+    <tbody>
+    {% for t in m.tracks %}
+    <tr>
+      <td>{{ t.track_number }}</td>
+      <td>{% if t.title %}{{ t.title }}{% else %}<em class="muted">—</em>{% endif %}</td>
+      <td class="muted">{{ t.artist or '—' }}</td>
+      <td>{{ (t.duration_seconds // 60) | int }}:{{ "%02d"|format(t.duration_seconds % 60 | int) }}</td>
+      <td>{{ "%.1f"|format(t.lufs) }}</td>
+      <td class="mono" style="font-size:0.8rem;">{{ t.isrc or '—' }}</td>
+      <td>{% if t.explicit %}<span class="badge badge-yellow">E</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Artwork ─────────────────────────────────────────────────────────── #}
+{% if result.artwork %}
+{% set art = result.artwork %}
+<div class="card section-gap">
+  <div class="card-title">🖼  Artwork</div>
+  <p>{{ art.width }}×{{ art.height }} px &nbsp;·&nbsp; {{ art.format }} &nbsp;·&nbsp; {{ art.file_size_kb }} KB &nbsp;·&nbsp; {{ art.color_mode }}</p>
+  {% if art.warnings %}
+  {% for w in art.warnings %}
+  <div class="alert alert-warn" style="margin-top:8px;">{{ w }}</div>
+  {% endfor %}
+  {% else %}
+  <div class="alert alert-info" style="margin-top:8px;">✔ Artwork passed all checks.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Encoded files ───────────────────────────────────────────────────── #}
+{% if result.encoded %}
+<div class="card section-gap">
+  <div class="card-title">📦  Encoded Deliverables</div>
+  {% for filename, enc_list in result.encoded.items() %}
+  <div style="margin-top:12px;">
+    <strong class="mono" style="font-size:0.85rem;">{{ filename }}</strong>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+      {% for enc in enc_list %}
+      <span class="badge {% if enc.success %}badge-green{% else %}badge-red{% endif %}" title="{{ enc.output_path }}">
+        {{ enc.format_key }} {% if enc.success %}✔{% else %}✘{% endif %}
+      </span>
+      {% if enc.warning %}
+      <div class="alert alert-warn" style="margin-top:4px; width:100%; font-size:0.8rem;">{{ enc.warning }}</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Launch checklist ────────────────────────────────────────────────── #}
+{% if result.launch_checklist %}
+<div class="card section-gap">
+  <div class="card-title">✅  Launch Checklist</div>
+  {% for item in result.launch_checklist %}
+  {% if item.status == "done" %}{% set icon = "✔" %}{% set colour = "var(--green)" %}
+  {% elif item.status == "warning" %}{% set icon = "⚠" %}{% set colour = "var(--yellow)" %}
+  {% else %}{% set icon = "○" %}{% set colour = "var(--muted)" %}{% endif %}
+  <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); font-size:0.875rem;">
+    <span style="color:{{ colour }}; min-width:18px;">{{ icon }}</span>
+    <div>
+      <span style="color:{{ colour }};">{{ item.item }}</span>
+      {% if item.notes %}<div class="muted" style="font-size:0.8rem; margin-top:2px;">{{ item.notes }}</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Pipeline errors ─────────────────────────────────────────────────── #}
+{% if result.errors %}
+<div class="card section-gap">
+  <div class="card-title">⚠  Pipeline Notes</div>
+  {% for err in result.errors %}
+  <div class="alert alert-warn" style="margin-top:6px; font-size:0.82rem; font-family:monospace; white-space:pre-wrap;">{{ err }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p style="margin-top:24px; text-align:center;"><a href="/">← Process another release</a></p>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}UnitedMasters — Build Your Release{% endblock %}
+{% block content %}
+
+{% if error %}
+<div class="alert alert-err" style="margin-top:24px;">⚠ {{ error }}</div>
+{% endif %}
+
+<div class="card" style="margin-top:32px;">
+  <div class="card-title">🎛  Build a Launch Package</div>
+
+  <form method="POST" action="/process">
+
+    <div class="form-row">
+      <label for="input_dir">📁  Input folder path (absolute path on this machine)</label>
+      <input type="text" id="input_dir" name="input_dir"
+             placeholder="/Users/artist/my_album_masters"
+             value="{{ request.form.get('input_dir', '') }}" required />
+    </div>
+
+    <div class="form-row">
+      <label for="preset">🎚  Mastering preset family</label>
+      <select id="preset" name="preset">
+        <option value="streaming_safe">Streaming Safe — balanced, universal (-11.5 to -10.5 LUFS)</option>
+        <option value="loud_modern_rap">Loud Modern Rap — aggressive density (-9.5 to -8.5 LUFS)</option>
+        <option value="warm_hip_hop">Warm Hip-Hop — analogue warmth (-10.5 to -9.5 LUFS)</option>
+        <option value="vocal_forward">Vocal Forward — presence & clarity (-10.5 to -9.0 LUFS)</option>
+        <option value="trap_808_heavy">Trap / 808-Heavy — sub control & clip (-9.5 to -8.0 LUFS)</option>
+        <option value="clean_dynamic">Clean &amp; Dynamic — audiophile / licensing (-13.0 to -11.0 LUFS)</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>📦  Export formats</label>
+      <div class="checkbox-group">
+        {% set default_formats = ['wav_16_44', 'mp3_320', 'flac'] %}
+        {% for key, label in [
+            ('wav_16_44',  'WAV 16-bit / 44.1 kHz'),
+            ('wav_24_44',  'WAV 24-bit / 44.1 kHz'),
+            ('wav_24_48',  'WAV 24-bit / 48 kHz'),
+            ('wav_24_96',  'WAV 24-bit / 96 kHz'),
+            ('mp3_128',    'MP3 128 kbps'),
+            ('mp3_192',    'MP3 192 kbps'),
+            ('mp3_256',    'MP3 256 kbps'),
+            ('mp3_320',    'MP3 320 kbps'),
+            ('mp3_vbr',    'MP3 VBR V0'),
+            ('flac',       'FLAC lossless'),
+        ] %}
+        <label class="checkbox-item">
+          <input type="checkbox" name="formats" value="{{ key }}"
+                 {% if key in default_formats %}checked{% endif %} />
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary">🚀  Build Launch Package</button>
+
+  </form>
+</div>
+
+<!-- Info section -->
+<div class="card" style="margin-top:24px;">
+  <div class="card-title">ℹ  What this tool does</div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:0.875rem;">
+    <div>
+      <p style="color:var(--cyan); font-weight:600; margin-bottom:6px;">Analysis &amp; QC</p>
+      <ul style="color:var(--muted); padding-left:18px; line-height:1.9;">
+        <li>Integrated LUFS, true peak, crest factor</li>
+        <li>Clipping, DC offset, silence detection</li>
+        <li>Album-level consistency &amp; loudness balance</li>
+        <li>Metadata completeness validation</li>
+        <li>Artwork dimension &amp; format checks</li>
+      </ul>
+    </div>
+    <div>
+      <p style="color:var(--cyan); font-weight:600; margin-bottom:6px;">Delivery &amp; Promo</p>
+      <ul style="color:var(--muted); padding-left:18px; line-height:1.9;">
+        <li>Mastering preset recommendations with full explanations</li>
+        <li>Delivery encodes: WAV / MP3 / FLAC</li>
+        <li>Release manifest (CSV + JSON)</li>
+        <li>30-second teaser snippets per track</li>
+        <li>Full launch checklist with risk score</li>
+      </ul>
+    </div>
+  </div>
+  <div class="alert alert-warn" style="margin-top:18px;">
+    <strong>⚠  Source quality ceiling:</strong>
+    Converting a low-bitrate MP3 (e.g. 128 kbps) to 320 kbps MP3 or 24-bit WAV
+    <strong>does NOT</strong> restore lost frequency information.
+    Always start from the highest quality source available.
+    Optional restoration stages (declip, deartifact, denoise) are noted in the recommendations
+    but require specialist tools (iZotope RX, Cedar, etc.).
+  </div>
+</div>
+
+{% endblock %}
