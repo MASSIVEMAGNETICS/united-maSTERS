@@ -203,7 +203,7 @@
     {% for t in m.tracks %}
     <tr>
       <td>{{ t.track_number }}</td>
-      <td>{{ t.title or '<em class="muted">—</em>' }}</td>
+      <td>{% if t.title %}{{ t.title }}{% else %}<em class="muted">—</em>{% endif %}</td>
       <td class="muted">{{ t.artist or '—' }}</td>
       <td>{{ (t.duration_seconds // 60) | int }}:{{ "%02d"|format(t.duration_seconds % 60 | int) }}</td>
       <td>{{ "%.1f"|format(t.lufs) }}</td>
@@ -266,7 +266,7 @@
     <span style="color:{{ colour }}; min-width:18px;">{{ icon }}</span>
     <div>
       <span style="color:{{ colour }};">{{ item.item }}</span>
-      {% if item.get("notes") %}<div class="muted" style="font-size:0.8rem; margin-top:2px;">{{ item.notes }}</div>{% endif %}
+      {% if item.notes %}<div class="muted" style="font-size:0.8rem; margin-top:2px;">{{ item.notes }}</div>{% endif %}
     </div>
   </div>
   {% endfor %}

@@ -45,12 +45,25 @@ def process():
             error="Please provide an input directory path.",
         )
 
-    if not Path(input_dir).is_dir():
+    # Resolve to an absolute path and confirm it is a real directory.
+    # This prevents relative-path traversal and symlink tricks.
+    try:
+        resolved = Path(input_dir).resolve()
+    except Exception:
+        return render_template(
+            "index.html",
+            version=__version__,
+            error="Invalid directory path.",
+        )
+
+    if not resolved.is_dir():
         return render_template(
             "index.html",
             version=__version__,
             error=f"Directory not found: {input_dir}",
         )
+
+    input_dir = str(resolved)
 
     job_id = str(uuid.uuid4())
     output_dir = str(Path(input_dir) / "_output")
@@ -289,4 +302,5 @@ def _serialise_result(result) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Do not run with debug=True in production — use a WSGI server instead.
+    app.run(debug=False, port=5000)

@@ -281,7 +281,7 @@ def run_album_qc(
 
     # --- Duplicate title detection ---
     titles = [f.stem.strip().lower() for f in audio_files]
-    seen: dict = {}
+    seen: Dict[str, int] = {}
     for i, title in enumerate(titles):
         if title in seen:
             issues.append(

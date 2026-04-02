@@ -273,6 +273,6 @@ def _find_artwork(folder: str) -> Optional[str]:
     for path in Path(folder).iterdir():
         if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
             stem_lower = path.stem.lower()
-            if any(n in stem_lower for n in image_names) or True:
+            if any(n in stem_lower for n in image_names):
                 return str(path)
     return None
