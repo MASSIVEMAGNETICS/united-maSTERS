@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "united-masters"
+version = "1.4.0"
+description = "Local-first music release workbench: mastering, encoding, QC, and delivery."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [{ name = "MASSIVEMAGNETICS" }]
+keywords = ["audio", "mastering", "music", "release", "qc", "lufs"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Typing :: Typed",
+]
+dependencies = [
+    "click>=8.0",
+    "flask>=2.0",
+    "mutagen>=1.45",
+    "pillow>=9.0",
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "pydub>=0.25",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "torch>=2.1.0",
+]
+loudnorm = [
+    "pyloudnorm>=0.1.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+united-masters = "united_masters.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/MASSIVEMAGNETICS/united-maSTERS"
+Repository = "https://github.com/MASSIVEMAGNETICS/united-maSTERS"
+"Bug Tracker" = "https://github.com/MASSIVEMAGNETICS/united-maSTERS/issues"
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.8"
+strict = false
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_ignores = true
+files = ["united_masters", "vos_core"]

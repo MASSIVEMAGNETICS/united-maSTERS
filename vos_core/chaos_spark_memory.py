@@ -80,6 +80,9 @@ class ChaosSparkMemory:
 
         self._hot_cache: Deque[Dict[str, Any]] = deque(maxlen=capacity)
         self._db: sqlite3.Connection = sqlite3.connect(db_path, check_same_thread=False)
+        # WAL mode: allows concurrent readers while a writer is active.
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA synchronous=NORMAL")
         self._db.execute(_SCHEMA_SQL)
         self._db.commit()
 

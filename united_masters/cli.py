@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 
 from united_masters import __version__
+from united_masters.logging_config import configure_logging
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +48,10 @@ def _echo_info(msg: str) -> None:
 
 @click.group()
 @click.version_option(__version__, prog_name="united-masters")
-def cli() -> None:
+@click.option("--log-level", default=None, help="Log level (DEBUG, INFO, WARNING, ERROR).")
+def cli(log_level: str | None) -> None:
     """UnitedMasters Release Workbench — local-first music release factory."""
+    configure_logging(level=log_level)
 
 
 # ---------------------------------------------------------------------------

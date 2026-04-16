@@ -179,12 +179,10 @@ def _count_silence_ms(mono, sample_rate: int, threshold: float, *, from_start: b
     import numpy as np  # noqa: PLC0415
 
     data = mono if from_start else mono[::-1]
-    count = 0
-    for sample in data:
-        if abs(sample) < threshold:
-            count += 1
-        else:
-            break
+    # Vectorised: find first sample whose absolute value exceeds threshold.
+    loud_mask = np.abs(data) >= threshold
+    nonzero = np.nonzero(loud_mask)[0]
+    count = int(nonzero[0]) if len(nonzero) else len(data)
     return round(count / sample_rate * 1000, 1)
 
 

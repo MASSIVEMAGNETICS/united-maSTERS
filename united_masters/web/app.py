@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 import traceback
 import uuid
 from pathlib import Path
@@ -15,7 +16,9 @@ from typing import Any, Dict
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from united_masters import __version__
+from united_masters.logging_config import configure_logging
 
+configure_logging()
 app = Flask(__name__)
 
 _secret = os.environ.get("UM_SECRET_KEY")
@@ -26,6 +29,9 @@ if not _secret:
     )
     _secret = "um-workbench-dev-key"
 app.secret_key = _secret
+
+# Limit incoming request body to 16 MB (form fields only — no file upload).
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 # Sensitive system path prefixes that are never valid release-folder targets.
 _BLOCKED_PATH_PREFIXES = (
@@ -68,14 +74,54 @@ _ALLOWED_FORMATS = {
     "flac",
 }
 
-# In-memory job store: {job_id: {"status": ..., "result": ...}}
+# In-memory job store: {job_id: {"status": ..., "result": ..., "created_at": float}}
 _jobs: Dict[str, Dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
+
+# Jobs older than this are evicted from the in-memory store (seconds).
+_JOB_TTL_SECONDS = 3600  # 1 hour
+
+
+def _evict_old_jobs() -> None:
+    """Remove completed jobs older than _JOB_TTL_SECONDS from the store."""
+    cutoff = time.monotonic() - _JOB_TTL_SECONDS
+    with _jobs_lock:
+        expired = [
+            jid for jid, job in _jobs.items()
+            if job.get("status") != "running" and job.get("created_at", 0) < cutoff
+        ]
+        for jid in expired:
+            del _jobs[jid]
+
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self';"
+    )
+    return response
 
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.route("/health")
+def health():
+    """Liveness probe — returns 200 OK with a simple JSON payload."""
+    return jsonify({"status": "ok", "version": __version__}), 200
 
 @app.route("/")
 def index():
@@ -141,8 +187,10 @@ def process():
     job_id = str(uuid.uuid4())
     output_dir = str(Path(input_dir) / "_output")
 
+    _evict_old_jobs()
+
     with _jobs_lock:
-        _jobs[job_id] = {"status": "running", "result": None, "error": None}
+        _jobs[job_id] = {"status": "running", "result": None, "error": None, "created_at": time.monotonic()}
 
     thread = threading.Thread(
         target=_run_pipeline_job,
@@ -231,13 +279,14 @@ def _run_pipeline_job(
         serialised = _serialise_result(pipeline_result)
 
         with _jobs_lock:
-            _jobs[job_id] = {"status": "done", "result": serialised, "error": None}
+            _jobs[job_id] = {"status": "done", "result": serialised, "error": None, "created_at": _jobs[job_id].get("created_at", time.monotonic())}
     except Exception as exc:
         with _jobs_lock:
             _jobs[job_id] = {
                 "status": "error",
                 "result": None,
                 "error": f"{exc}\n{traceback.format_exc()}",
+                "created_at": _jobs[job_id].get("created_at", time.monotonic()),
             }
 
 
