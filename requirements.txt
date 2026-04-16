@@ -2,8 +2,16 @@ click>=8.0
 flask>=2.0
 mutagen>=1.45
 pillow>=9.0
-numpy>=1.21
+numpy>=1.26.4
 scipy>=1.7
 pydub>=0.25
 # librosa is optional (heavy dependency) — scipy is used for basic audio analysis
 # librosa>=0.9
+
+# --- VOS v0.5.0 dependencies ---
+# torch is optional; VOS falls back to NumPy on CPU-only installs.
+# Uncomment the line below to enable GPU acceleration:
+# torch>=2.1.0
+#
+# Windows DirectML (GPU on AMD/Intel via DirectX 12) — optional extra:
+# torch-directml
