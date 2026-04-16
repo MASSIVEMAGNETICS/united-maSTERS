@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 
 from united_masters import __version__
 from united_masters.logging_config import configure_logging
@@ -99,7 +99,7 @@ def _evict_old_jobs() -> None:
 # ---------------------------------------------------------------------------
 
 @app.after_request
-def add_security_headers(response):
+def add_security_headers(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -279,14 +279,14 @@ def _run_pipeline_job(
         serialised = _serialise_result(pipeline_result)
 
         with _jobs_lock:
-            _jobs[job_id] = {"status": "done", "result": serialised, "error": None, "created_at": _jobs[job_id].get("created_at", time.monotonic())}
+            _jobs[job_id] = {"status": "done", "result": serialised, "error": None, "created_at": _jobs[job_id]["created_at"]}
     except Exception as exc:
         with _jobs_lock:
             _jobs[job_id] = {
                 "status": "error",
                 "result": None,
                 "error": f"{exc}\n{traceback.format_exc()}",
-                "created_at": _jobs[job_id].get("created_at", time.monotonic()),
+                "created_at": _jobs[job_id]["created_at"],
             }
 
 
