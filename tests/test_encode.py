@@ -8,10 +8,7 @@ the batch helper.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from united_masters.core.encode import (
     SUPPORTED_OUTPUT_FORMATS,
